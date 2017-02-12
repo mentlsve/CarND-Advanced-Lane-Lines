@@ -231,9 +231,9 @@ def detectLanePixels(self, image_BGR):
 ```
 
 First we can see the thresholds from the above table in the code. After we have calculated the individual masks (`colors`, `sobel_x`, `sobel_y` and `magnitude`) we need to combine them. The `sobel_x` and `magnitude` filter do a pretty good job at detecting the line, but they also detect some noise at the bottom of the picture.
-This noise seems to be included when applying the `sobel_y` filter, which detects also a fraction of the lane lines.
+This noise seems to be included in `sobel_y`, which detects also a fraction of the lane lines.
 
-Therefore I take the following approach I take the pixels identified by `sobel_x` and `magnitude` and then remove the pixels identified by `sobel_y`. With this I can reduce the noise at the bottom of the image without loosing to much information about the lane lines. Finally I combine this with all pixels identified by `colors` and then apply a blur to smoothen it.
+Therefore I take the following approach I take the pixels identified by `sobel_x` and `magnitude` and then remove the pixels identified by `sobel_y`. With this I can reduce the noise at the bottom of the image without loosing to much information about the lane lines. Finally I combine this with all pixels identified by `colors` and then apply a blur to smoothen it. In the following image you can see the result of gradient thresholding ((`sobel_x` + `magnitude`) - `sobel_y`) the result of color thresholding and their combination:
 
 <img src="./writeup_images/test-images-combined-thresholding.png" alt="Drawing" style="width: 800px;"/>
 

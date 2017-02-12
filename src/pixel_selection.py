@@ -15,12 +15,8 @@ class PixelSelection:
         combined = np.zeros_like(sobel_x)
 
         sobel[((magnitude == 1) | (sobel_x == 1))] = 1
-
-        sobel[550:] = 0
-
+        sobel[(sobel_y == 1)] = 0
         combined[((colors == 1) | (sobel == 1))] = 1
-
-        combined[:, 1100:] = 0
-        combined[:, :180] = 0
+        combined = cv2.blur(combined,(5,5))
 
         return combined

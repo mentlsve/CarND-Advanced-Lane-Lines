@@ -76,13 +76,21 @@ class LaneFinder:
         self.lastLeftLanes = lastLeftLanes
         self.lastRightLanes = lastRightLanes
 
+        if(len(lastLeftLanes) > 1):
+            self.lastLeftLane = lastLeftLanes[-1]
+        if(len(lastRightLanes) > 1):
+            self.lastRightLane = lastRightLanes[-1]
+
+
+
         # Create empty lists to receive left and right lane pixel indices
         self.left_lane_inds = []
         self.right_lane_inds = []
+
         self.leftx_current = 0
         self.rightx_current = 0
 
-        self.minpix = 50
+        self.minpix = 230
 
         self.ym_per_pix = 30/720 # meters per pixel in y dimension
         self.xm_per_pix = 3.7/700
@@ -119,6 +127,9 @@ class LaneFinder:
         self.rightx_current = rightx_base
 
     def detectLanes(self):
+
+        if(len(self.lastLeftLanes) > 4 and len(self.lastRightLanes) > 4):
+            return self.detectLanesFast()
 
         wf = WindowFactory(self.nwindows, self.binary_warped)
 
@@ -183,6 +194,40 @@ class LaneFinder:
 
         return (self.left_lane, self.right_lane)
 
+    def detectLanesFast(self):
+        nonzero = self.binary_warped.nonzero()
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
+        margin = 100
+        a,b,c = self.lastLeftLane.getCoeffs()
+        left_lane_inds = ((nonzerox > (a*(nonzeroy**2) + b*nonzeroy + c - margin)) & (nonzerox < (a*(nonzeroy**2) + b*nonzeroy + c + margin)))
+        a,b,c = self.lastRightLane.getCoeffs()
+        right_lane_inds = ((nonzerox > (a*(nonzeroy**2) + b*nonzeroy + c - margin)) & (nonzerox < (a*(nonzeroy**2) + b*nonzeroy + c + margin)))
+
+        # Again, extract left and right line pixel positions
+        x_coords_left_lane = nonzerox[left_lane_inds]
+        y_coords_left_lane = nonzeroy[left_lane_inds]
+        x_coords_right_lane = nonzerox[right_lane_inds]
+        y_coords_right_lane = nonzeroy[right_lane_inds]
+
+                #print("x_coords_left_lane.shape", x_coords_left_lane.shape)
+        for lane in self.lastLeftLanes:
+            #print("left lane.getXCoords.shape", lane.getXCoords().shape)
+            x_coords_left_lane = np.hstack((x_coords_left_lane, lane.getXCoords()))
+            y_coords_left_lane = np.hstack((y_coords_left_lane, lane.getYCoords()))
+        #print("x_coords_left_lane.shape", x_coords_left_lane.shape)
+
+        for lane in self.lastRightLanes:
+            x_coords_right_lane = np.hstack((x_coords_right_lane, lane.getXCoords()))
+            y_coords_right_lane = np.hstack((y_coords_right_lane, lane.getYCoords()))
+
+        #print(x_coords_right_lane.shape)
+
+        self.left_lane = Lane(x_coords_left_lane, y_coords_left_lane, self.binary_warped.shape[0])
+        self.right_lane = Lane(x_coords_right_lane, y_coords_right_lane, self.binary_warped.shape[0])
+
+        return (self.left_lane, self.right_lane)
+
     def getLeftLane(self):
         return self.left_lane
 
@@ -191,3 +236,22 @@ class LaneFinder:
 
     def getOutImage(self):
         return self.out_img
+
+
+#image_BGR = cv2.imread('./test_images_perspective/test4.jpg')
+image_BGR = cv2.imread('./test_images/test4.jpg')
+undistorted =  camera.undistort(image_BGR)
+pt = PerspectiveTransform()
+image_BGR = pt.toBirdsEyeView(undistorted)
+
+ps = PixelSelection()
+binary_warped = ps.detectLanePixels(image_BGR)
+lf = LaneFinder(binary_warped, 15, [],[], interactiveMode = True)
+lf.detectLanes()
+out_img = lf.getOutImage()
+
+left_lane = lf.getLeftLane()
+right_lane = lf.getRightLane()
+
+left_fit = left_lane.getCoeffs()
+right_fit = right_lane.getCoeffs()

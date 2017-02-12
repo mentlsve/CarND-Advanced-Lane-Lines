@@ -239,14 +239,14 @@ Therefore I take the following approach I take the pixels identified by `sobel_x
 
 ##### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 ---
-Once we have the image transformed and identified the pixels which likely belong to a lane we can start finding the lane line. First the concept of a search window is introduced:
+Once we have the image transformed and identified the pixels which likely belong to a lane we can start finding the lane line. For this I need the concept of a search window:
 
 ###### Search Window
 In a window we search for all points where the value is 1 (e.g. Window 4 in the below image). From every identified point we take the x-coordinate and then take the mean of these values (light blue point in the below image). This mean value is used to adjust the horizontal center of the next window (light purple point in the below image). So the mean value of x-coordinates from `window n` becomes the horizontal center of `window n+1`.
 
 <img src="./writeup_images/window-slicing.png" alt="Drawing" style="width: 800px;"/>
 
-However we are only going to change the horizontal center of `window n+1` if there are more than 50 points used when calculating the mean of x-coordinates of `window n`. This way we avoid being too sensitive and jumping around.
+However we are only going to change the horizontal center of `window n+1` if there are more than 230 points (`self.minpix = 230` in class `LaneFinder`) used when calculating the mean of x-coordinates of `window n`. This way we avoid being too sensitive and jumping around.
 
 Search Windows are constructed by the methods `getWindowLeft` and `getWindowRight` from the class `WindowFactory`  (line 29-66 in `src/lane_finder.py`).
 A search window is specified through its `top_left` and `bottom_right` point. The methods `getWindowLeft` and `getWindowRight` calculate these two points based on the window number (determines the y-coordinates of the window) and the horizontal center (determines the x-coordinates of the window).
@@ -266,6 +266,28 @@ We then fit one second order polynomial to the sum of all left-lane points and o
 
 ```
 coefficients = np.polyfit(self.yCoords * YM_PER_PIX, self.xCoords * XM_PER_PIX, 2)
+```
+
+###### Fast lane line detection
+
+Once I have a fitted lane line available I can use it to limit the space where I look for lane line pixels in the next image and do not need to do all the steps described in *Points for line fitting*.
+
+This is implemented as method `detectLanesFast` of class `LaneFinder`. First I take the coefficients of the latest detected left lane to derive the search space for the current image and then I do the same for the latest detected right lane:
+
+```
+a,b,c = self.lastLeftLane.getCoeffs()
+left_lane_inds = ((nonzerox > (a*(nonzeroy**2) + b*nonzeroy + c - margin)) & (nonzerox < (a*(nonzeroy**2) + b*nonzeroy + c + margin)))
+a,b,c = self.lastRightLane.getCoeffs()
+right_lane_inds = ((nonzerox > (a*(nonzeroy**2) + b*nonzeroy + c - margin)) & (nonzerox < (a*(nonzeroy**2) + b*nonzeroy + c + margin)))
+```
+
+`nonzerox` and `nonzery` are from the current image and by combining this with the search space (`left_lane_inds` and `right_lane_inds`) I get the coordinates of potential lane line pixels without performing a complete window search:
+
+```
+x_coords_left_lane = nonzerox[left_lane_inds]
+y_coords_left_lane = nonzeroy[left_lane_inds]
+x_coords_right_lane = nonzerox[right_lane_inds]
+y_coords_right_lane = nonzeroy[right_lane_inds]
 ```
 
 ##### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
@@ -337,6 +359,56 @@ As you can see the parameters for thresholding are not perfect for the last thre
 ##### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 ---
 
+All the individual steps are put in sequence in the method `run` of class `ImagePipeline` (`src/image_pipeline.py`) which is then executed on every frame of the video:
+
+```
+def run(self, image_RGB):
+
+    # moviepy reads in the image as RGB, but the pipeline is based on BGR
+    image_BGR = cv2.cvtColor(image_RGB, cv2.COLOR_RGB2BGR)
+
+    # 1. undistort the image
+    undistorted = self.camera.undistort(image_BGR)
+
+    # 2. perspective transformation
+    perspective = PerspectiveTransform()
+    warped = perspective.toBirdsEyeView(undistorted)
+
+    # 3. find potential lane pixels
+    ps = PixelSelection()
+    binary_warped = ps.detectLanePixels(warped)
+
+    # 4. derive the lanes
+    laneFinder = LaneFinder(binary_warped,
+                            15,
+                            self.lastLeftLanes,
+                            self.lastRightLanes,
+                            interactiveMode = False)
+    left_lane, right_lane = laneFinder.detectLanes()
+
+
+    self.lastLeftLanes.append(left_lane)
+    self.lastRightLanes.append(right_lane)
+    if(len(self.lastLeftLanes) > 5):
+        self.lastLeftLanes.popleft()
+        self.lastRightLanes.popleft()
+
+    # 5. create the overlay
+    oh = OverlayHelper(left_lane, right_lane)
+    street_overlay_birds_eye_view = oh.createOverlay(warped)
+    street_overlay_car_camera_view = pt.toCarCameraView(street_overlay_birds_eye_view)
+
+    # 6. combine the overlay
+    combined = oh.addOverlay(street_overlay_car_camera_view, undistorted)
+
+    # 7. write the metadata on the image
+    oh.addMetadata(combined, XM_PER_PIX)
+
+    output = cv2.cvtColor(combined, cv2.COLOR_BGR2RGB)
+
+    return output
+```
+
 Here's a [link to my video result](./project_video_sven.mp4)
 
 ---
@@ -345,4 +417,3 @@ Here's a [link to my video result](./project_video_sven.mp4)
 
 ##### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 ---
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  

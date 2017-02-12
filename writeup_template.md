@@ -58,7 +58,7 @@ So what we need is a transformation where the green marked points become the blu
 
 The method `getImagePoints` from class `Camera` (`src/camera.py`) encapsulates the detection of inner corners in one chessboard image. It takes the file name of the image and then:
 
-* resizes it to a size of 1280x720. This is because there are some images which have a size of 1281x721 and we need all of the to be the same size.
+* resizes it to a size of 1280x720. This is because there are some images which have a size of 1281x721 and we need all of them to be the same size.
 * converts it to a grayscale image. This is because `cv2.findChessboardCorners` needs a n 8-bit input image.
 * runs `cv2.findChessboardCorners` and returns the coordinates (*imagepoints*) of the corners it found.
 
@@ -148,7 +148,7 @@ def toCarCameraView(self, img):
 
 ```
 
-Here is the result for all test images (also available in `./test_images_perspective`):
+Below is the result for all test images (also available in `./test_images_perspective`). Every image has been undistorted and then perspective has been changed from car camera view to birds-eye view:
 
 <img src="./writeup_images/test-images-perspective-transformation.png" alt="Drawing" style="width: 800px;"/>
 
@@ -222,18 +222,18 @@ def detectLanePixels(self, image_BGR):
     combined = np.zeros_like(sobel_x)
 
     sobel[((magnitude == 1) | (sobel_x == 1))] = 1
-
-    sobel[550:] = 0
-
+    sobel[(sobel_y == 1)] = 0
     combined[((colors == 1) | (sobel == 1))] = 1
-
-    combined[:, 1100:] = 0
-    combined[:, :180] = 0
+    combined = cv2.blur(combined,(5,5))
 
     return combined
+
 ```
 
-First we take all pixels identified by the magnitude or the sobel_x filter. In the above picture we can see there is some noise especially in the lower part of the binary images. To get rid of this we remove all pixels at the bottom (where the y value of a pixel is bigger than 550) of the binary image. Then we combine this with all pixels identified by color selection. Since the chosen thresholds for color selection are a little bit problematic at the left and right side of the image (especially for the test images I derived from the harder challenge video), I cut a strip of width 180 pixels away from both sides.
+First we can see the thresholds from the above table in the code. After we have calculated the individual masks (`colors`, `sobel_x`, `sobel_y` and `magnitude`) we need to combine them. The `sobel_x` and `magnitude` filter do a pretty good job at detecting the line, but they also detect some noise at the bottom of the picture.
+This noise seems to be included when applying the `sobel_y` filter, which detects also a fraction of the lane lines.
+
+Therefore I take the following approach I take the pixels identified by `sobel_x` and `magnitude` and then remove the pixels identified by `sobel_y`. With this I can reduce the noise at the bottom of the image without loosing to much information about the lane lines. Finally I combine this with all pixels identified by `colors` and then apply a blur to smoothen it.
 
 <img src="./writeup_images/test-images-combined-thresholding.png" alt="Drawing" style="width: 800px;"/>
 

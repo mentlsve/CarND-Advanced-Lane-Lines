@@ -410,7 +410,7 @@ Here's a [link to my video result](./project_video_sven.mp4)
 
 This was a very interesting project and it took me ages (much more than the 10 hours per week planned ;)) to play around with the parameters to find something that works ok. One issue is certainly that my gradient thresholding could mislead me, in cases where the road has been patched. E.g. in the following image it would likely detect 3 lines in x-direction:
 
-<img src="./writeup_images/challenge_video-13.png" alt="Drawing" style="width: 800px;"/>
+<img src="./writeup_images/challenge_video-13.jpg" alt="Drawing" style="width: 800px;"/>
 
 Another issue is with objects which are on the road. In the following image my gradient thresholding is likely to consider the motorbike and its drive as a possible lane line:
 
